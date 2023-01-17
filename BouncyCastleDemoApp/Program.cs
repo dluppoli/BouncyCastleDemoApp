@@ -27,8 +27,11 @@ class Program
 
         string key = "HelloWorld!!$$!!";
 
-        AES_CBC_Encrypt("8061.bmp", Encoding.ASCII.GetBytes(key));
+        //AES_CBC_Encrypt("8061.bmp", Encoding.ASCII.GetBytes(key));
         //AES_ECB_Decrypt("test2.txt.bin", Encoding.ASCII.GetBytes(key));
+
+        RsaEncryptPublic("8061.bmp", "public.pem");
+        //GenerateRsaKeys(2048);
     }
 
     static void AES_CBC_Encrypt(string filePath, byte[] key)
@@ -72,6 +75,17 @@ class Program
             byte[] plaintext = AES_ECB(ciphertext, key, false);
 
             File.WriteAllBytes(filePath.Replace(".bin",""), plaintext);
+        }
+    }
+
+    static void RsaEncryptPublic(string filePath, string keyPath)
+    {
+        if( File.Exists(filePath))
+        {
+            byte[] plaintext = File.ReadAllBytes(filePath);
+            byte[] ciphertext = RsaEncryptPublic(plaintext, keyPath);
+
+            File.WriteAllBytes(filePath+".bin", ciphertext);
         }
     }
 
@@ -130,9 +144,38 @@ class Program
 
 
 
+    public static byte[] RsaEncryptPublic(byte[] input, string keyPath)
+    {
+        Pkcs1Encoding cipher = new Pkcs1Encoding(new RsaEngine());
 
+        var fileStream = System.IO.File.OpenText(keyPath);
+        PemReader pemReader = new PemReader(fileStream);
 
+        AsymmetricKeyParameter keyParam = (AsymmetricKeyParameter) pemReader.ReadObject();
 
+        cipher.Init(true, keyParam);
+        return cipher.ProcessBlock(input, 0, input.Length);
+    }
+
+    public static void GenerateRsaKeys(int keysize)
+    {
+        if (keysize != 1024 && keysize != 2048 && keysize != 3072) return;
+
+        RsaKeyPairGenerator gen = new RsaKeyPairGenerator();
+
+        KeyGenerationParameters parameters = new KeyGenerationParameters(new SecureRandom(), keysize);
+
+        gen.Init(parameters);
+        AsymmetricCipherKeyPair key = gen.GenerateKeyPair();
+
+        string fileName = @"myprivate.pem";
+
+        StreamWriter streamWriter = new StreamWriter(fileName);
+        PemWriter pem = new PemWriter(streamWriter);
+
+        pem.WriteObject(key.Private);
+        pem.Writer.Close();
+    }
 
 
 
