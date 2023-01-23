@@ -30,7 +30,8 @@ class Program
         //AES_CBC_Encrypt("8061.bmp", Encoding.ASCII.GetBytes(key));
         //AES_ECB_Decrypt("test2.txt.bin", Encoding.ASCII.GetBytes(key));
 
-        RsaEncryptPublic("8061.bmp", "public.pem");
+        //RsaEncryptWithPublic("test.txt", "public.pem");
+        RsaDecryptWithPrivate("test.txt.bin", "private.pem");
         //GenerateRsaKeys(2048);
     }
 
@@ -78,14 +79,25 @@ class Program
         }
     }
 
-    static void RsaEncryptPublic(string filePath, string keyPath)
+    static void RsaEncryptWithPublic(string filePath, string keyPath)
     {
         if( File.Exists(filePath))
         {
             byte[] plaintext = File.ReadAllBytes(filePath);
-            byte[] ciphertext = RsaEncryptPublic(plaintext, keyPath);
+            byte[] ciphertext = RsaEncryptWithPublic(plaintext, keyPath);
 
             File.WriteAllBytes(filePath+".bin", ciphertext);
+        }
+    }
+
+    static void RsaDecryptWithPrivate(string filePath, string keyPath)
+    {
+        if (File.Exists(filePath))
+        {
+            byte[] plaintext = File.ReadAllBytes(filePath);
+            byte[] ciphertext = RsaDecryptWithPrivate(plaintext, keyPath);
+
+            File.WriteAllBytes(filePath.Replace(".bin",""), ciphertext);
         }
     }
 
@@ -144,7 +156,7 @@ class Program
 
 
 
-    public static byte[] RsaEncryptPublic(byte[] input, string keyPath)
+    public static byte[] RsaEncryptWithPublic(byte[] input, string keyPath)
     {
         Pkcs1Encoding cipher = new Pkcs1Encoding(new RsaEngine());
 
@@ -154,6 +166,19 @@ class Program
         AsymmetricKeyParameter keyParam = (AsymmetricKeyParameter) pemReader.ReadObject();
 
         cipher.Init(true, keyParam);
+        return cipher.ProcessBlock(input, 0, input.Length);
+    }
+
+    public static byte[] RsaDecryptWithPrivate(byte[] input, string keyPath)
+    {
+        Pkcs1Encoding cipher = new Pkcs1Encoding(new RsaEngine());
+
+        var fileStream = System.IO.File.OpenText(keyPath);
+        PemReader pemReader = new PemReader(fileStream);
+
+        AsymmetricCipherKeyPair keyParam = (AsymmetricCipherKeyPair)pemReader.ReadObject();
+
+        cipher.Init(false, keyParam.Private);
         return cipher.ProcessBlock(input, 0, input.Length);
     }
 
