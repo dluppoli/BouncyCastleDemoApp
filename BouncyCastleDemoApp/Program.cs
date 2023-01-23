@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography.X509Certificates;
+﻿using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
@@ -8,11 +9,15 @@ using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Modes;
+using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Paddings;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Crypto.Signers;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace BouncyCastleDemoApp;
@@ -182,9 +187,9 @@ class Program
         return cipher.ProcessBlock(input, 0, input.Length);
     }
 
-    public static void GenerateRsaKeys(int keysize)
+    public static AsymmetricCipherKeyPair GenerateRsaKeys(int keysize)
     {
-        if (keysize != 1024 && keysize != 2048 && keysize != 3072) return;
+        if (keysize != 1024 && keysize != 2048 && keysize != 3072) throw new ArgumentException();
 
         RsaKeyPairGenerator gen = new RsaKeyPairGenerator();
 
@@ -200,9 +205,9 @@ class Program
 
         pem.WriteObject(key.Private);
         pem.Writer.Close();
+
+        return key;
     }
-
-
 
     static void HashFormString(string s)
     {
