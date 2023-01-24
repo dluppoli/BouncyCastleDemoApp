@@ -30,14 +30,27 @@ class Program
         //HashFormString("123456");
         //BcryptFromString("123456");
 
-        string key = "HelloWorld!!$$!!";
+        //string key = "HelloWorld!!$$!!";
 
         //AES_CBC_Encrypt("8061.bmp", Encoding.ASCII.GetBytes(key));
         //AES_ECB_Decrypt("test2.txt.bin", Encoding.ASCII.GetBytes(key));
 
         //RsaEncryptWithPublic("test.txt", "public.pem");
-        RsaDecryptWithPrivate("test.txt.bin", "private.pem");
+        //RsaDecryptWithPrivate("test.txt.bin", "private.pem");
         //GenerateRsaKeys(2048);
+        //CreateCertificate("davide.cer", "CN=Davide", "CN= Davide CA", 12, 2048);
+        //RSASign("test.txt", "myprivate.pem");
+        //RSAVerify("test.txt", "test.txt.sign", "davide.cer");
+
+
+        SecureRandom random = new SecureRandom();
+        byte[] buff = new byte[16];
+
+        for (int i = 0; i < 5000; i++)
+        {
+            random.NextBytes(buff);
+            File.AppendAllText("rnd.txt", Convert.ToBase64String(buff)+"\n");
+        }
     }
 
     static void AES_CBC_Encrypt(string filePath, byte[] key)
@@ -230,6 +243,91 @@ class Program
         byte[] digest = BCrypt.Generate(passwordBytes, salt, 13);
 
         Console.WriteLine(BitConverter.ToString(digest).Replace("-", ""));
+    }
+
+    public static System.Security.Cryptography.X509Certificates.X509Certificate CreateCertificate(string subjectName, string issuerName, int validityMonth, int keySize = 2048)
+    {
+        X509V3CertificateGenerator certificateGenerator = new X509V3CertificateGenerator();
+
+        SecureRandom random = new SecureRandom();
+        Org.BouncyCastle.Math.BigInteger serialNumber = BigIntegers.CreateRandomInRange(
+            Org.BouncyCastle.Math.BigInteger.ValueOf(1),
+            Org.BouncyCastle.Math.BigInteger.ValueOf(Int64.MaxValue),
+            random);
+
+        certificateGenerator.SetSerialNumber(serialNumber);
+
+        certificateGenerator.SetIssuerDN(new X509Name(issuerName));
+        certificateGenerator.SetSubjectDN(new X509Name(subjectName));
+
+        DateTime now = DateTime.UtcNow.Date;
+        certificateGenerator.SetNotBefore(now);
+        certificateGenerator.SetNotAfter(now.AddMonths(validityMonth));
+
+        AsymmetricCipherKeyPair cipherKeyPair = GenerateRsaKeys(keySize);
+        certificateGenerator.SetPublicKey(cipherKeyPair.Public);
+
+        certificateGenerator.AddExtension(X509Extensions.KeyUsage.Id, true, new KeyUsage(KeyUsage.KeyCertSign));
+
+        //Certificate Sign
+        Asn1SignatureFactory signatureFactory = new Asn1SignatureFactory("SHA512WITHRSA", cipherKeyPair.Private, random);
+
+        Org.BouncyCastle.X509.X509Certificate certificate = certificateGenerator.Generate(signatureFactory);
+
+        return new System.Security.Cryptography.X509Certificates.X509Certificate(certificate.GetEncoded());
+    }
+
+    public static void CreateCertificate(string path, string subjectName, string issuerName, int validityMonth, int keySize = 2048)
+    {
+        System.Security.Cryptography.X509Certificates.X509Certificate certificate = CreateCertificate(subjectName, issuerName, validityMonth, keySize);
+        File.WriteAllBytes(path, certificate.Export(X509ContentType.Cert));
+    }
+
+
+    public static void RSASign(string path, string privateKeyPath)
+    {
+        byte[] bytesToSign = File.ReadAllBytes(path);
+
+        AsymmetricCipherKeyPair keyPair;
+        TextReader reader = File.OpenText(privateKeyPath);
+        keyPair = (AsymmetricCipherKeyPair) new PemReader(reader).ReadObject();
+
+        Sha256Digest sha256Digest = new Sha256Digest();
+        byte[] hash = new byte[sha256Digest.GetDigestSize()];
+        sha256Digest.BlockUpdate(bytesToSign, 0, bytesToSign.Length);
+        sha256Digest.DoFinal(hash, 0);
+
+        PssSigner signer = new PssSigner(new RsaEngine(), new Sha256Digest(), sha256Digest.GetDigestSize());
+        signer.Init(true, keyPair.Private);
+        signer.BlockUpdate(hash, 0, hash.Length);
+
+        byte[] signature = signer.GenerateSignature();
+
+        File.WriteAllBytes(path + ".sign", signature);
+    }
+
+    public static void RSAVerify(string path, string signaturePath, string certificatePath)
+    {
+        byte[] bytesToVerifiy = File.ReadAllBytes(path);
+        byte[] expetedSignature = File.ReadAllBytes(signaturePath);
+
+        Org.BouncyCastle.X509.X509Certificate cert = new Org.BouncyCastle.X509.X509Certificate(File.ReadAllBytes(certificatePath));
+
+        if (!cert.IsValidNow) throw new InvalidKeyException();
+
+        AsymmetricKeyParameter publicKey = cert.GetPublicKey();
+
+        Sha256Digest sha256Digest = new Sha256Digest();
+        byte[] hash = new byte[sha256Digest.GetDigestSize()];
+        sha256Digest.BlockUpdate(bytesToVerifiy, 0, bytesToVerifiy.Length);
+        sha256Digest.DoFinal(hash, 0);
+
+        PssSigner signer = new PssSigner(new RsaEngine(), new Sha256Digest(), sha256Digest.GetDigestSize());
+        signer.Init(false, publicKey);
+        signer.BlockUpdate(hash, 0, hash.Length);
+
+        Console.WriteLine(signer.VerifySignature(expetedSignature));
+
     }
 }
 
